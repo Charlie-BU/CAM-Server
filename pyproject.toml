@@ -14,7 +14,7 @@ dependencies = [
     "psycopg2-binary>=2.9.11",
     "python-dotenv>=1.0.0",
     "python-jose[cryptography]>=3.5.0",
-    "robyn>=0.72.2",
+    "robyn>=0.88.0",
     "sqlalchemy>=2.0.44",
 ]
 

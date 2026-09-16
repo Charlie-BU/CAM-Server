@@ -5,6 +5,7 @@ from subRouters.v1.service import serviceRouterV1
 from subRouters.v1.api import apiRouterV1
 from subRouters.v1.ai import aiRouterV1
 from database.database import initialize_database
+from subRouters.v1.sub_application import subApplicationRouterV1
 
 import json
 import os
@@ -22,6 +23,7 @@ app.include_router(userRouterV1)
 app.include_router(serviceRouterV1)
 app.include_router(apiRouterV1)
 app.include_router(aiRouterV1)
+app.include_router(subApplicationRouterV1)
 
 # 生产环境需要注释：使用nginx解决跨域问题
 ALLOW_CORS(app, origins=CORS_ORIGINS)
