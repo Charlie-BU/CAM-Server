@@ -462,3 +462,101 @@ class ResponseParamDraft(Base, SerializableMixin):
 
     def __repr__(self):
         return f"<ResponseParamDraft {self.name} ({self.status_code})>"
+
+
+# ---- 子应用配置表 ----
+class SubApplication(Base, SerializableMixin):
+    """微前端子应用配置"""
+
+    __tablename__ = "sub_application"
+    id = Column(
+        Integer, primary_key=True,
+        comment="子应用配置主键。",
+    )
+    app_key = Column(
+        String(64), unique=True, nullable=False,
+        comment="子应用唯一标识，创建后不可修改，用于目录识别。",
+    )
+    name_zh = Column(
+        String(128), nullable=False,
+        comment="子应用中文名称，用于中文界面展示。",
+    )
+    name_en = Column(
+        String(128), nullable=False,
+        comment="子应用英文名称，用于英文界面展示。",
+    )
+    description_zh = Column(
+        Text, nullable=False, default="",
+        comment="子应用中文说明，可为空。",
+    )
+    description_en = Column(
+        Text, nullable=False, default="",
+        comment="子应用英文说明，可为空。",
+    )
+    icon_url = Column(
+        String(2048), nullable=False, default="",
+        comment="应用图标地址，支持 HTTP(S) URL 或基座根相对路径，可为空。",
+    )
+    app_type = Column(
+        String(16), nullable=False,
+        comment="接入类型：federation 表示远程组件，iframe 表示嵌入网页。",
+    )
+    route_path = Column(
+        String(128), unique=True, nullable=False,
+        comment="子应用在基座中的唯一顶层路由路径，例如 /cam。",
+    )
+    frontend_url = Column(
+        String(2048), nullable=False,
+        comment="前端入口地址：Federation 的 manifest 或 remote entry URL，或 iframe 网页 URL。",
+    )
+    remote_name = Column(
+        String(64), nullable=False, default="",
+        comment="Federation 远程容器名称；iframe 应用为空。",
+    )
+    exposed_module = Column(
+        String(128), nullable=False, default="",
+        comment="Federation 导出模块路径，例如 ./App；iframe 应用为空。",
+    )
+    backend_url = Column(
+        String(2048), nullable=False, default="",
+        comment="子应用后端服务根地址，由浏览器直接访问；无后端或 iframe 应用为空。",
+    )
+    sort_order = Column(
+        Integer, nullable=False, default=0,
+        comment="展示排序值，数值越小越靠前，相同值按主键排序。",
+    )
+    enabled = Column(
+        Boolean, nullable=False, default=True,
+        comment="是否启用应用；停用后不进入基座运行目录。",
+    )
+    show_in_menu = Column(
+        Boolean, nullable=False, default=True,
+        comment="是否显示在侧导菜单中；隐藏菜单不影响已启用应用的直接路由访问。",
+    )
+    require_login = Column(
+        Boolean, nullable=False, default=True,
+        comment="通过基座访问子应用是否需要登录。",
+    )
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False,
+        comment="配置创建时间，包含时区信息。",
+    )
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False,
+        comment="配置最后更新时间，包含时区信息。",
+    )
+    created_by = Column(
+        Integer, ForeignKey("user.id"), nullable=True,
+        comment="创建配置的用户 ID，关联用户表；手动初始化时可为空。",
+    )
+    updated_by = Column(
+        Integer, ForeignKey("user.id"), nullable=True,
+        comment="最后修改配置的用户 ID，关联用户表；手动初始化时可为空。",
+    )
+    deleted_at = Column(
+        DateTime(timezone=True), nullable=True,
+        comment="软删除时间；为空表示未删除，删除后保留原有标识和路径占用。",
+    )
+
+    def __repr__(self):
+        return f"<SubApplication {self.app_key} ({self.name_zh})>"

@@ -179,7 +179,7 @@ requires-dist = [
     { name = "psycopg2-binary", specifier = ">=2.9.11" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.5.0" },
-    { name = "robyn", specifier = ">=0.72.2" },
+    { name = "robyn", specifier = ">=0.88.0" },
     { name = "sqlalchemy", specifier = ">=2.0.44" },
 ]
 

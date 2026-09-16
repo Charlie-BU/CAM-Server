@@ -10,6 +10,11 @@ from database.enums import UserLevel
 # 接口权限映射，value为访问该接口最低的用户等级
 API_PERMISSION_MAP = {
     "/v1/user/getUserById": UserLevel.L0,
+    "/v1/sub-application/create": UserLevel.L0,
+    "/v1/sub-application/update": UserLevel.L0,
+    "/v1/sub-application/set-enabled": UserLevel.L0,
+    "/v1/sub-application/delete": UserLevel.L0,
+    "/v1/sub-application/reorder": UserLevel.L0,
 }
 
 
