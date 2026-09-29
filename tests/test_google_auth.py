@@ -19,6 +19,13 @@ from services.user import (
 
 class GoogleAuthTest(unittest.TestCase):
     def setUp(self):
+        environment = patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "test-client-id"})
+        environment.start()
+        self.addCleanup(environment.stop)
+        os.environ.pop("GOOGLE_ORG_ALLOW_LIST", None)
+        signing = patch.multiple("services.user", ALGORITHM="HS256", SECRET_KEY="test-signing-secret")
+        signing.start()
+        self.addCleanup(signing.stop)
         self.engine = create_engine("sqlite:///:memory:")
         Base.metadata.create_all(self.engine)
         self.session = sessionmaker(bind=self.engine)()
@@ -178,7 +185,7 @@ class GoogleAuthTest(unittest.TestCase):
                 os.environ,
                 {
                     "GOOGLE_CLIENT_ID": "test-client-id",
-                    "GOOGLE_HOSTED_DOMAIN": "example.com",
+                    "GOOGLE_ORG_ALLOW_LIST": '["example.com"]',
                 },
                 clear=False,
             ),
@@ -191,6 +198,86 @@ class GoogleAuthTest(unittest.TestCase):
 
         self.assertEqual(payload["sub"], response["sub"])
         self.assertEqual("test-client-id", verifier.call_args.args[2])
+
+    def test_allow_list_accepts_multiple_domains(self):
+        with (
+            patch.dict(os.environ, {
+                "GOOGLE_ORG_ALLOW_LIST": '[" example.com ", "EXAMPLE.ORG"]',
+            }),
+            patch("services.user.google_id_token.verify_oauth2_token") as verifier,
+        ):
+            for domain in ("example.com", "example.org"):
+                with self.subTest(domain=domain):
+                    verifier.return_value = {
+                        **self.google_payload(email=f"user@{domain.upper()}"),
+                        "hd": domain,
+                    }
+                    self.assertEqual(domain, verifyGoogleCredential("credential")["hd"])
+
+    def test_allow_list_rejects_missing_hd_external_email_and_suffix_matches(self):
+        with (
+            patch.dict(os.environ, {"GOOGLE_ORG_ALLOW_LIST": '["example.com"]'}),
+            patch("services.user.google_id_token.verify_oauth2_token") as verifier,
+        ):
+            for hd, email in (
+                (None, "user@example.com"),
+                ("other.example", "user@example.com"),
+                ("example.com", "user@other.example"),
+                ("example.com.evil.test", "user@example.com.evil.test"),
+                ("sub.example.com", "user@sub.example.com"),
+            ):
+                with self.subTest(hd=hd, email=email):
+                    verifier.return_value = {**self.google_payload(email=email), "hd": hd}
+                    with self.assertRaises(GoogleAuthError) as context:
+                        verifyGoogleCredential("credential")
+                    self.assertEqual(403, context.exception.http_status)
+                    self.assertEqual("GOOGLE_DOMAIN_NOT_ALLOWED", context.exception.code)
+
+    def test_invalid_allow_list_fails_closed_before_verification(self):
+        for raw in ('', 'example.com', 'null', '{}', '"example.com"', '[1]', '[""]', '[" "]'):
+            with (
+                self.subTest(raw=raw),
+                patch.dict(os.environ, {"GOOGLE_ORG_ALLOW_LIST": raw}),
+                patch("services.user.google_id_token.verify_oauth2_token") as verifier,
+            ):
+                with self.assertRaises(GoogleAuthError) as context:
+                    verifyGoogleCredential("credential")
+                self.assertEqual(503, context.exception.http_status)
+                self.assertEqual("GOOGLE_AUTH_NOT_CONFIGURED", context.exception.code)
+                verifier.assert_not_called()
+
+    def test_empty_allow_list_rejects_all_accounts(self):
+        with (
+            patch.dict(os.environ, {"GOOGLE_ORG_ALLOW_LIST": '[]'}),
+            patch("services.user.google_id_token.verify_oauth2_token",
+                  return_value={**self.google_payload(), "hd": "example.com"}),
+        ):
+            with self.assertRaises(GoogleAuthError) as context:
+                verifyGoogleCredential("credential")
+            self.assertEqual(403, context.exception.http_status)
+
+    def test_unset_domain_configuration_preserves_unrestricted_login(self):
+        with patch("services.user.google_id_token.verify_oauth2_token",
+                   return_value=self.google_payload()):
+            self.assertEqual("user@example.com", verifyGoogleCredential("credential")["email"])
+
+    def test_restricted_login_and_link_do_not_write_or_issue_tokens(self):
+        with (
+            patch.dict(os.environ, {"GOOGLE_ORG_ALLOW_LIST": '["allowed.example"]'}),
+            patch("services.user.google_id_token.verify_oauth2_token",
+                  return_value={**self.google_payload(), "hd": "example.com"}),
+            patch("services.user.createAccessToken") as issue_token,
+        ):
+            for action in (
+                lambda: userGoogleLogin(self.session, "credential"),
+                lambda: userLinkGoogleIdentity(self.session, 1, "credential"),
+            ):
+                with self.assertRaises(GoogleAuthError) as context:
+                    action()
+                self.assertEqual(403, context.exception.http_status)
+            issue_token.assert_not_called()
+            self.assertEqual(0, self.session.query(User).count())
+            self.assertEqual(0, self.session.query(UserAuthIdentity).count())
 
     def test_google_credential_rejects_unverified_email(self):
         with (

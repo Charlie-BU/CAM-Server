@@ -8,6 +8,7 @@ from google.auth.exceptions import TransportError
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 import hashlib
+import json
 import os
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
@@ -81,6 +82,27 @@ def userGetUserById(db: Session, id: int) -> dict:
     }
 
 
+def _googleAllowedDomains() -> set[str] | None:
+    """读取 Google 登录组织白名单。"""
+    raw = os.getenv("GOOGLE_ORG_ALLOW_LIST")
+    if raw is None:
+        return None
+    try:
+        domains = json.loads(raw)
+        if not isinstance(domains, list) or any(
+            not isinstance(domain, str) or not domain.strip()
+            for domain in domains
+        ):
+            raise ValueError("Expected a JSON array of nonempty domains")
+    except ValueError as error:
+        raise GoogleAuthError(
+            503,
+            "GOOGLE_AUTH_NOT_CONFIGURED",
+            "Google organization allow list is invalid",
+        ) from error
+    return {domain.strip().lower() for domain in domains}
+
+
 def verifyGoogleCredential(credential: str) -> dict:
     client_id = os.getenv("GOOGLE_CLIENT_ID")
     if not client_id:
@@ -91,6 +113,7 @@ def verifyGoogleCredential(credential: str) -> dict:
         )
     if not credential:
         raise GoogleAuthError(400, "INVALID_REQUEST", "credential is required")
+    allowed_domains = _googleAllowedDomains()
     try:
         payload = google_id_token.verify_oauth2_token(
             credential,
@@ -130,8 +153,13 @@ def verifyGoogleCredential(credential: str) -> dict:
             "INVALID_GOOGLE_CREDENTIAL",
             "Google account identity is too long",
         )
-    hosted_domain = os.getenv("GOOGLE_HOSTED_DOMAIN")
-    if hosted_domain and payload.get("hd") != hosted_domain:
+    hosted_domain = str(payload.get("hd") or "").strip().lower()
+    email_domain = str(email).strip().lower().rsplit("@", 1)
+    if allowed_domains is not None and (
+        hosted_domain not in allowed_domains
+        or len(email_domain) != 2
+        or email_domain[1] not in allowed_domains
+    ):
         raise GoogleAuthError(
             403,
             "GOOGLE_DOMAIN_NOT_ALLOWED",
