@@ -16,6 +16,7 @@ from database.database import session
 from services.user import (
     userGetUserIdByAccessToken,
     userLogin,
+    userListUsers,
     userRegister,
     userGetUserById,
 )
@@ -89,6 +90,22 @@ async def getUserByUsernameOrNicknameOrEmail(request: Request):
             username_or_nickname_or_email=username_or_nickname_or_email,
         )
     return res
+
+
+# 成员目录沿用登录认证，对所有 CDI 用户开放。
+@userRouterV1.get("/listUsers", auth_required=True)
+async def listUsers(request: Request):
+    try:
+        after_id = int(request.query_params.get("after_id", "0"))
+        limit = int(request.query_params.get("limit", "100"))
+        raw_user = request.query_params.get("user_id", None)
+        user_id = int(raw_user) if raw_user is not None else None
+        if not 0 <= after_id <= 9223372036854775807 or not 1 <= limit <= 100 or (user_id is not None and not 1 <= user_id <= 9223372036854775807):
+            raise ValueError("Invalid user query")
+    except (TypeError, ValueError):
+        return Response(status_code=400, description=json.dumps({"status": 400, "message": "Invalid user query"}), headers={"Content-Type": "application/json"})
+    with session() as db:
+        return userListUsers(db, after_id, limit, user_id)
 
 
 # 用户登录

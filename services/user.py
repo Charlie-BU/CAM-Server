@@ -444,3 +444,15 @@ def userModifyPassword(
         "status": 200,
         "message": "Modify password success",
     }
+
+
+def userListUsers(db: Session, after_id: int = 0, limit: int = 100, user_id: int | None = None) -> dict:
+    """列出全部用户；仅暴露目录字段，不返回账号配置或邮箱。"""
+    query = db.query(User.id, User.username, User.nickname).filter(User.id > after_id)
+    if user_id is not None:
+        query = query.filter(User.id == user_id)
+    rows = query.order_by(User.id).limit(limit + 1).all()
+    items = [{"cdi_user_id": str(row.id), "display_name": (row.nickname or "").strip() or row.username} for row in rows[:limit]]
+    more = len(rows) > limit
+    return {"status": 200, "items": items, "has_more": more,
+            "next_after_id": items[-1]["cdi_user_id"] if more else ""}

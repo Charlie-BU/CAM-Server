@@ -1413,3 +1413,12 @@ GET /v1/user/getUserByUsernameOrNicknameOrEmail?username_or_nickname_or_email=al
 响应值示例：
 
 {"status":200,"message":"Modify password success"}
+
+## ListUsers
+
+- `GET /v1/user/listUsers`，需要有效 CDI Bearer Token；对所有用户角色开放。
+- 全部 CDI 用户均为成员，无独立组织概念，也不按连接/同步状态筛选。
+- 查询：`after_id` 默认 `0`；`limit` 默认 `100`，范围 1–100；可选 `user_id` 精确查询一个成员。
+- 返回：`{"status":200,"items":[{"cdi_user_id":"1","display_name":"Alice"}],"has_more":false,"next_after_id":""}`。
+- ID 是精确十进制字符串，按 ID 升序游标分页。仅返回 ID 与昵称（缺失时使用用户名），不包含邮箱、凭据或账号权限配置。无匹配成员返回空列表；非法参数返回 400；未登录使用既有认证拒绝机制。
+- 供 AirJelly Team 服务端读取目录和校验资料读取对象；Team 不直连 CDI 数据库。
