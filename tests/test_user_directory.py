@@ -29,9 +29,9 @@ class UserDirectoryTest(unittest.TestCase):
         with self.factory() as db:
             first = userListUsers(db, limit=2)
             second = userListUsers(db, after_id=int(first['next_after_id']), limit=2)
-        self.assertEqual(first['items'], [{'cdi_user_id': '1', 'display_name': 'Alice'}, {'cdi_user_id': '2', 'display_name': 'bob'}])
+        self.assertEqual(first['items'], [{'cdi_user_id': '1', 'display_name': 'Alice', 'jelly_config': None}, {'cdi_user_id': '2', 'display_name': 'bob', 'jelly_config': None}])
         self.assertTrue(first['has_more'])
-        self.assertEqual(second['items'], [{'cdi_user_id': '9007199254740993', 'display_name': 'precise'}])
+        self.assertEqual(second['items'], [{'cdi_user_id': '9007199254740993', 'display_name': 'precise', 'jelly_config': None}])
         self.assertFalse(second['has_more'])
         self.assertEqual(second['next_after_id'], '')
 
@@ -56,3 +56,18 @@ class UserDirectoryTest(unittest.TestCase):
             self.assertIsNone(handler.authenticate(request))
         with patch('authentication.decodeAccessToken', side_effect=ValueError('expired')):
             self.assertIsNone(handler.authenticate(request))
+
+    def test_jelly_config_roundtrips_as_json_and_null(self):
+        config = {"type": "airjelly.floating-avatar-presets", "schemaVersion": 1,
+                  "presets": [{"id": "sample", "appearance": {"variant": "pixel"}}], "customFaces": []}
+        with self.factory() as db:
+            user = db.get(User, 1)
+            user.jelly_config = config
+            db.commit()
+            db.expire_all()
+            self.assertEqual(userListUsers(db, user_id=1)["items"][0]["jelly_config"], config)
+            self.assertEqual(db.get(User, 1).toJson()["jelly_config"], config)
+            user.jelly_config = None
+            db.commit()
+            from sqlalchemy import text
+            self.assertEqual(db.execute(text('SELECT jelly_config IS NULL FROM "user" WHERE id=1')).scalar(), 1)

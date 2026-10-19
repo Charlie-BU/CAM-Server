@@ -4,6 +4,7 @@ from sqlalchemy import (
     Column,
     String,
     Integer,
+    JSON,
     Boolean,
     ForeignKey,
     Enum,
@@ -105,6 +106,7 @@ class User(Base, SerializableMixin):
     username = Column(String(64), unique=True, nullable=False, index=True)
     password = Column(String(128), nullable=True)
     nickname = Column(String(64), nullable=True, index=True)
+    jelly_config = Column(JSON(none_as_null=True), nullable=True)
     email = Column(String(128), nullable=True, unique=True)
     role = Column(Enum(UserRole), default=UserRole.GUEST)
     level = Column(Enum(UserLevel), default=UserLevel.L4)
