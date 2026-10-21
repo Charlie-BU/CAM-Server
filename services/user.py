@@ -178,7 +178,7 @@ def _googleUsername(db: Session, subject: str) -> str:
 
 
 def _issueUserAccessToken(user: User) -> dict:
-    access_token = createAccessToken(data={"id": user.id, "username": user.username})
+    access_token = createAccessToken(data={"id": user.id, "username": user.username}, expires_delta=timedelta(days=7))
     return {
         "status": 200,
         "message": "Login success",
@@ -359,12 +359,7 @@ def userLogin(db: Session, username: str, password: str) -> dict:
             "status": -2,
             "message": "Wrong password",
         }
-    access_token = createAccessToken(data={"id": user.id, "username": user.username})
-    return {
-        "status": 200,
-        "message": "Login success",
-        "access_token": access_token,
-    }
+    return _issueUserAccessToken(user)
 
 
 # 用户注册
